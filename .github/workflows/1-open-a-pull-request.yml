@@ -1,0 +1,70 @@
+name: Step 1, Open an issue
+
+# This step listens for the learner to open an issue with the title containing 'NewIssue'.
+# This workflow updates from step 1 to step 2.
+
+on:
+  workflow_dispatch:
+  issues:
+    types:
+      - opened
+
+permissions:
+  # Need `contents: read` to checkout the repository.
+  # Need `contents: write` to update the step metadata.
+  contents: write
+
+jobs:
+  # Get the current step to only run the main job when the learner is on the same step.
+  get_current_step:
+    name: Check current step number
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - id: get_step
+        run: |
+          echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
+    outputs:
+      current_step: ${{ steps.get_step.outputs.current_step }}
+
+  on_open_an_issue:
+    name: On open an issue
+    needs: get_current_step
+
+    # We will only run this action when:
+    # 1. This repository isn't the template repository.
+    # 2. The step is currently 1.
+    # 3. The issue title contains 'NewIssue'.
+    if: >-
+      ${{ !github.event.repository.is_template
+          && needs.get_current_step.outputs.current_step == 1
+          && contains(github.event.issue.title, 'NewIssue') }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      # We'll need to check out the repository so that we can edit the markdown files.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Let's get all the branches.
+
+      # Replace '1-open-a-pull-request.md' with '2-assign-yourself.md' in the step folder
+      - name: Update step file to 2-assign-yourself.md
+        run: |
+          # Move the old file to a new name within the step folder
+          mv step/1-open-a-pull-request.md step/2-assign-yourself.md
+
+          # Optionally, update the content inside the markdown file to reflect Step 2 content
+          # (this can be customized based on what changes you'd like to make to the file itself)
+          echo "Updated step from 1 to 2. Assign Yourself" >> step/2-assign-yourself.md
+
+      # Commit and push changes
+      - name: Commit changes
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add step/2-assign-yourself.md
+          git commit -m "Updated to step 2 - Assign Yourself"
+          git push
